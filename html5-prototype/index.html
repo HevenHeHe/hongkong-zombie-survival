@@ -136,6 +136,20 @@
             STARVING_DAMAGE_PER_SECOND: 5
         };
 
+        // Tracking
+        const Track = {
+            send(event, params = {}) {
+                console.log('[Track]', event, params);
+                localStorage.setItem('track_' + event, JSON.stringify({...params, ts: Date.now()}));
+            },
+            appOpen() { this.send('app_open', { version: '1.0.0', platform: 'web' }); },
+            gameStart() { this.send('level_start', { level: 1, day: 1 }); },
+            gameOver(score, time) { this.send('level_fail', { score, time_survived: time, level: 1 }); },
+            zombieKill() { this.send('zombie_kill'); },
+            resourceCollect(type) { this.send('resource_collect', { type }); },
+            dayComplete(day, score) { this.send('level_complete', { level: 1, day, score }); }
+        };
+
         // Global state
         let scene, camera, renderer, world;
         let player, zombies = [], playerBody, attackArc;
@@ -547,6 +561,7 @@
             createSurvivalObjects();
             ensureAudio();
             updateHUD();
+            Track.gameStart();
         }
 
         function restartGame() {
@@ -989,6 +1004,7 @@
             document.getElementById('game-over').style.display = 'flex';
             document.getElementById('final-time').textContent = Math.round(gameTime / 1000);
             document.getElementById('final-score').textContent = score;
+            Track.gameOver(score, gameTime);
         }
     </script>
 </body>
