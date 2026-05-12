@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hong Kong Zombie Survival - Free Game</title>
+    
+    <!-- SEO Meta -->
+    <meta name="description" content="Survive the zombie apocalypse in neon-lit Hong Kong streets! Build defenses, gather resources, and fight endless zombie hordes.">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Hong Kong Zombie Survival">
+    <meta property="og:description" content="Survive the zombie apocalypse in neon-lit Hong Kong streets!">
+    <meta property="og:image" content="assets/thumbnail.jpg">
+    <meta property="og:url" content="">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0c0c1a, #1a0a2e);
+            color: #fff; min-height: 100vh; display: flex; flex-direction: column;
+        }
+        .hero { 
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; padding: 20px;
+        }
+        h1 { 
+            font-size: 2.5rem; margin-bottom: 10px;
+            background: linear-gradient(90deg, #00f0ff, #ff0066);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        p { font-size: 1.1rem; margin-bottom: 20px; opacity: 0.9; max-width: 500px; }
+        .cta-btn {
+            padding: 18px 40px; font-size: 1.3rem; font-weight: bold;
+            background: linear-gradient(90deg, #00f0ff, #ff0066);
+            border: none; border-radius: 50px; color: #fff; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 10px 30px rgba(0, 240, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(0, 240, 255, 0.4); }
+        .features { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; padding: 40px 20px; max-width: 800px; margin: 0 auto;
+        }
+        .feature { 
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px;
+            text-align: center; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .feature h3 { color: #00f0ff; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>HONG KONG ZOMBIE SURVIVAL</h1>
+        <p>Survive the zombie apocalypse in neon-lit Hong Kong streets! Build defenses, gather resources, and fight endless zombie hordes.</p>
+        <button class="cta-btn" onclick="startGame()">▶ PLAY NOW - IT'S FREE!</button>
+    </div>
+    
+    <div class="features">
+        <div class="feature">
+            <h3>🏙️ HK STREETS</h3>
+            <p>Explore neon-lit Hong Kong streets</p>
+        </div>
+        <div class="feature">
+            <h3>🔨 BUILD & FIGHT</h3>
+            <p>Gather resources, craft weapons</p>
+        </div>
+        <div class="feature">
+            <h3>🧟 ENDLESS HORDES</h3>
+            <p>Survive increasing zombie waves</p>
+        </div>
+    </div>
+
+    <script>
+        function startGame() {
+            // Track CTA click
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'cta_click', { 'event_category': 'engagement' });
+            }
+            
+            // Open game in fullscreen
+            const gameWindow = window.open('index.html', '_blank', 'width=480,height=854');
+            if (gameWindow) {
+                gameWindow.focus();
+            } else {
+                alert('Popup blocked. Please allow popups for this site.');
+            }
+        }
+        
+        // Simple tracking placeholder (replace with actual GA4/Appsflyer ID)
+        console.log('Landing page loaded - ready for tracking integration');
+    </script>
+    
+    <!-- Google Analytics 4 placeholder - replace GA4-ID with actual ID -->
+    <!--
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA4-ID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'GA4-ID');
+    </script>
+    -->
+</body>
+</html>

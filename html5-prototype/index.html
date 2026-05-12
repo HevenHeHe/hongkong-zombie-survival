@@ -2,22 +2,60 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Hong Kong Zombie Survival</title>
     <link rel="stylesheet" href="css/main.css">
     <style>
+        /* Inline critical styles for file:// compatibility */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; font-family: Arial, sans-serif; background: #1a1a2e; }
-        #game-container { width: 100vw; height: 100vh; position: relative; }
+        body {
+            overflow: hidden; font-family: Arial, sans-serif; background: #05050a;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            touch-action: none;
+        }
+        #game-container {
+            width: min(100vw, calc(100vh * 9 / 16));
+            height: min(100vh, calc(100vw * 16 / 9));
+            position: relative; overflow: hidden; background: #111; touch-action: none;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 18px 60px rgba(0,0,0,0.55);
+        }
         #ui-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 100;
         }
         #hud {
             position: absolute; top: 10px; left: 10px; color: #fff;
-            font-size: 18px; text-shadow: 2px 2px 4px #000;
+            max-width: calc(100% - 20px);
+            font-size: 12px; line-height: 1.55; text-shadow: 2px 2px 4px #000;
         }
-        #hud span { margin-right: 20px; }
+        #hud span { margin-right: 9px; white-space: nowrap; }
+        #prompt { color: #ffff66; font-weight: bold; }
+        #touch-controls {
+            position: absolute; inset: 0; z-index: 120; pointer-events: none; display: none;
+        }
+        #joystick {
+            position: absolute; left: 22px; bottom: 28px; width: 126px; height: 126px;
+            border-radius: 50%; border: 2px solid rgba(0,240,255,0.35);
+            background: rgba(0,0,0,0.28); pointer-events: auto; touch-action: none;
+        }
+        #stick {
+            position: absolute; left: 41px; top: 41px; width: 44px; height: 44px;
+            border-radius: 50%; background: rgba(0,240,255,0.8);
+            box-shadow: 0 0 18px rgba(0,240,255,0.7);
+        }
+        #action-buttons {
+            position: absolute; right: 18px; bottom: 24px; display: grid;
+            grid-template-columns: 64px 64px; gap: 12px; pointer-events: auto;
+        }
+        .touch-btn {
+            width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.28);
+            color: #fff; background: rgba(0,0,0,0.42); font-size: 12px; font-weight: bold;
+            text-shadow: 1px 1px 3px #000; box-shadow: 0 0 16px rgba(0,0,0,0.35);
+            padding: 0; margin: 0; cursor: pointer; pointer-events: auto;
+        }
+        .touch-btn.primary { background: rgba(255,0,102,0.62); }
+        .touch-btn.utility { background: rgba(0,128,255,0.58); }
+        .touch-btn.jump { background: rgba(255,211,77,0.58); color: #111; text-shadow: none; }
         .neon-text { color: #00f0ff; text-shadow: 0 0 10px #00f0ff; }
         #start-screen, #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -36,16 +74,35 @@
     <div id="game-container">
         <div id="start-screen">
             <h1 class="neon-text">Hong Kong Zombie Survival</h1>
-            <p>Use WASD to move, Mouse to look, SPACE to jump</p>
+            <p>Drag left joystick, tap zombies, use right-side action buttons</p>
             <p>Survive as long as possible in zombie-infested Hong Kong!</p>
+            <p style="font-size:14px;color:#ff0;">God-view camera follows your survivor automatically</p>
             <button id="start-btn">Start Game</button>
         </div>
         <div id="ui-overlay">
             <div id="hud">
                 <span>Health: <span id="health">100</span>%</span>
+                <span>Fullness: <span id="hunger">100</span>%</span>
                 <span>Score: <span id="score">0</span></span>
                 <span>Zombies: <span id="zombie-count">0</span></span>
                 <span>Day: <span id="day">1</span></span>
+                <br>
+                <span>Wood: <span id="wood">0</span></span>
+                <span>Stone: <span id="stone">0</span></span>
+                <span>Fruit: <span id="fruit">0</span></span>
+                <span>Weapon: <span id="weapon">None</span></span>
+                <span>Tool: <span id="tool">Hands</span></span>
+                <span id="prompt"></span>
+            </div>
+        </div>
+        <div id="touch-controls">
+            <div id="joystick" aria-label="Move">
+                <div id="stick"></div>
+            </div>
+            <div id="action-buttons">
+                <button class="touch-btn utility" id="touch-interact">PICK</button>
+                <button class="touch-btn primary" id="touch-melee">HIT</button>
+                <button class="touch-btn jump" id="touch-jump">JUMP</button>
             </div>
         </div>
         <div id="game-over" style="display: none;">
@@ -57,23 +114,43 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
+    <script src="https://unpkg.com/cannon-es@0.19.0/dist/cannon.min.js"></script>
     <script>
+
         // Game configuration
         const CONFIG = {
             PLAYER_SPEED: 5,
             JUMP_FORCE: 8,
-            ZOMBIE_SPAWN_RATE: 3000,
-            MAX_ZOMBIES: 50,
-            DAY_DURATION: 60000 // 1 minute per day
+            ZOMBIE_SPAWN_RATE: 300,
+            MAX_ZOMBIES: 500,
+            DAY_DURATION: 60000, // 1 minute per day
+            CAMERA_HEIGHT: 42,
+            CAMERA_DISTANCE: 18,
+            CAMERA_LOOK_AHEAD: 4,
+            INTERACT_RANGE: 4,
+            ATTACK_RANGE: 5,
+            ATTACK_COOLDOWN: 500,
+            CLICK_ATTACK_DAMAGE: 35,
+            CLICK_ATTACK_COOLDOWN: 120,
+            HUNGER_DRAIN_PER_SECOND: 1.2,
+            STARVING_DAMAGE_PER_SECOND: 5
         };
 
         // Global state
         let scene, camera, renderer, world;
-        let player, zombies = [], playerBody;
-        let health = 100, score = 0, day = 1, gameTime = 0;
+        let player, zombies = [], playerBody, attackArc;
+        let resources = [], pickups = [];
+        let health = 100, hunger = 100, score = 0, day = 1, gameTime = 0;
+        let inventory = { wood: 0, stone: 0, fruit: 0, weapon: null, tool: null };
         let isGameStarted = false, isGameOver = false;
-        let keys = {}, lastSpawn = 0;
+        let keys = {}, actionPressed = {}, lastSpawn = 0, lastFrameTime = 0, lastAttack = 0, lastClickAttack = 0;
+        let audioContext;
+        let canJump = false;
+        let touchMoveX = 0, touchMoveZ = 0, joystickPointerId = null;
+        const cameraTarget = new THREE.Vector3();
+        const cameraLookAt = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
 
         // Initialize game
         document.addEventListener('DOMContentLoaded', init);
@@ -83,6 +160,7 @@
             setupCannon();
             createEnvironment();
             createPlayer();
+            createSurvivalObjects();
             setupControls();
             animate();
             setupUI();
@@ -92,12 +170,15 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87ceeb);
             
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 2;
+            const container = document.getElementById('game-container');
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, CONFIG.CAMERA_HEIGHT, CONFIG.CAMERA_DISTANCE);
+            camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('game-container').appendChild(renderer.domElement);
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.domElement.style.cursor = 'crosshair';
+            container.appendChild(renderer.domElement);
             
             // Lighting
             const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
@@ -109,10 +190,15 @@
             scene.add(dirLight);
             
             window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
+                resizeRendererToContainer();
             });
+        }
+
+        function resizeRendererToContainer() {
+            const container = document.getElementById('game-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
         }
 
         function setupCannon() {
@@ -133,7 +219,7 @@
             const groundShape = new CANNON.Box(new CANNON.Vec3(100, 0.5, 100));
             const groundBody = new CANNON.Body({ mass: 0 });
             groundBody.addShape(groundShape);
-            groundBody.position.set(0, -1, 0);
+            groundBody.position.set(0, -0.5, 0);
             world.addBody(groundBody);
             
             // Hong Kong style buildings (low poly)
@@ -177,7 +263,15 @@
             playerBody = new CANNON.Body({ mass: 5 });
             playerBody.addShape(shape);
             playerBody.position.set(0, 1, 0);
+            playerBody.angularDamping = 1;
+            playerBody.linearDamping = 0.1;
             world.addBody(playerBody);
+
+            playerBody.addEventListener('collide', (event) => {
+                if (event.body.mass === 0 && playerBody.velocity.y <= 0.1) {
+                    canJump = true;
+                }
+            });
             
             // Add box on head (zombie survival gear)
             const gear = new THREE.Mesh(
@@ -186,6 +280,124 @@
             );
             gear.position.y = 1.3;
             player.add(gear);
+
+            const facingMarker = new THREE.Mesh(
+                new THREE.ConeGeometry(0.25, 0.7, 4),
+                new THREE.MeshToonMaterial({ color: 0xffff00 })
+            );
+            facingMarker.rotation.x = -Math.PI / 2;
+            facingMarker.position.set(0, 0.65, -0.55);
+            player.add(facingMarker);
+
+            attackArc = new THREE.Mesh(
+                new THREE.TorusGeometry(1.1, 0.05, 8, 24, Math.PI),
+                new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 })
+            );
+            attackArc.rotation.x = Math.PI / 2;
+            attackArc.position.set(0, 0.15, -0.8);
+            player.add(attackArc);
+        }
+
+        function createSurvivalObjects() {
+            clearSurvivalObjects();
+            const resourceTypes = [
+                { type: 'wood', count: 14 },
+                { type: 'stone', count: 12 },
+                { type: 'fruit', count: 10 }
+            ];
+            resourceTypes.forEach(({ type, count }) => {
+                for (let i = 0; i < count; i++) {
+                    const position = randomWorldPosition(12, 85);
+                    createResourceNode(type, position.x, position.z);
+                }
+            });
+
+            createPickup('weapon', 'Pipe', -8, -10);
+            createPickup('weapon', 'Cleaver', 16, 14);
+            createPickup('tool', 'Axe', 10, -18);
+            createPickup('tool', 'Pickaxe', -18, 16);
+        }
+
+        function clearSurvivalObjects() {
+            resources.forEach(item => scene.remove(item.mesh));
+            pickups.forEach(item => scene.remove(item.mesh));
+            resources = [];
+            pickups = [];
+        }
+
+        function randomWorldPosition(minDistance, maxDistance) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = minDistance + Math.random() * (maxDistance - minDistance);
+            return {
+                x: Math.cos(angle) * distance,
+                z: Math.sin(angle) * distance
+            };
+        }
+
+        function createResourceNode(type, x, z) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+
+            if (type === 'wood') {
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.35, 0.45, 2.8, 6),
+                    new THREE.MeshToonMaterial({ color: 0x7a4a22 })
+                );
+                trunk.position.y = 1.4;
+                const crown = new THREE.Mesh(
+                    new THREE.ConeGeometry(1.6, 3.2, 7),
+                    new THREE.MeshToonMaterial({ color: 0x1f8f3a })
+                );
+                crown.position.y = 3.5;
+                group.add(trunk, crown);
+            } else if (type === 'stone') {
+                const rock = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(1.1, 0),
+                    new THREE.MeshToonMaterial({ color: 0x8a9099 })
+                );
+                rock.position.y = 0.7;
+                rock.scale.set(1.4, 0.8, 1.1);
+                group.add(rock);
+            } else {
+                const stem = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.18, 0.22, 1.8, 6),
+                    new THREE.MeshToonMaterial({ color: 0x5b3518 })
+                );
+                stem.position.y = 0.9;
+                const leaves = new THREE.Mesh(
+                    new THREE.SphereGeometry(1.2, 8, 6),
+                    new THREE.MeshToonMaterial({ color: 0x2fb35a })
+                );
+                leaves.position.y = 2;
+                const fruit = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.28, 8, 6),
+                    new THREE.MeshToonMaterial({ color: 0xff3355 })
+                );
+                fruit.position.set(0.55, 2.1, 0.4);
+                group.add(stem, leaves, fruit);
+            }
+
+            scene.add(group);
+            resources.push({ type, mesh: group, amount: type === 'fruit' ? 2 : 3 });
+        }
+
+        function createPickup(type, name, x, z) {
+            const group = new THREE.Group();
+            group.position.set(x, 0.4, z);
+            const color = type === 'weapon' ? 0xffd34d : 0x48d1ff;
+            const handle = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.2, 1.8),
+                new THREE.MeshToonMaterial({ color: 0x5a351c })
+            );
+            const head = new THREE.Mesh(
+                new THREE.BoxGeometry(type === 'weapon' ? 0.35 : 0.75, 0.3, 0.45),
+                new THREE.MeshToonMaterial({ color })
+            );
+            head.position.z = -0.9;
+            group.rotation.y = Math.random() * Math.PI;
+            group.add(handle, head);
+            scene.add(group);
+            pickups.push({ type, name, mesh: group });
         }
 
         function createZombie(x, z) {
@@ -201,23 +413,113 @@
             const body = new CANNON.Body({ mass: 3 });
             body.addShape(shape);
             body.position.set(x, 0.9, z);
+            body.angularDamping = 0.95;
             world.addBody(body);
             
-            zombies.push({ mesh: zombie, body: body, speed: 0.02 + Math.random() * 0.02 });
+            zombies.push({ mesh: zombie, body: body, speed: 3.5 + Math.random() * 2.5, health: 35 });
+        }
+
+        function handleWorldClick(event) {
+            if (!isGameStarted || isGameOver) return;
+            // Ignore touch events to avoid conflict with joystick/buttons
+            if (event.pointerType === 'touch') return;
+            ensureAudio();
+
+            const now = performance.now();
+            if (now - lastClickAttack < CONFIG.CLICK_ATTACK_COOLDOWN) return;
+            lastClickAttack = now;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(pointer, camera);
+            const zombieMeshes = zombies.map(zombie => zombie.mesh);
+            const hits = raycaster.intersectObjects(zombieMeshes, false);
+
+            if (!hits.length) {
+                playSound('miss');
+                createClickRipple(raycaster.ray.at(30, new THREE.Vector3()), 0x88ccff);
+                return;
+            }
+
+            const target = zombies.find(zombie => zombie.mesh === hits[0].object);
+            if (!target) return;
+
+            damageZombie(target, CONFIG.CLICK_ATTACK_DAMAGE, hits[0].point, true);
         }
 
         function setupControls() {
-            document.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
-            document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
-            
-            // Mouse look
-            let yaw = 0, pitch = 0;
-            document.addEventListener('mousemove', (e) => {
-                if (!isGameStarted || isGameOver) return;
-                yaw -= e.movementX * 0.002;
-                pitch -= e.movementY * 0.002;
-                pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
-                camera.rotation.set(pitch, yaw, 0);
+            document.addEventListener('keydown', (e) => { 
+                keys[e.key.toLowerCase()] = true;
+                if (e.code === 'Space') keys[' '] = true;
+                if (e.key.toLowerCase() === 'e') actionPressed.interact = true;
+                if (e.key.toLowerCase() === 'f') actionPressed.attack = true;
+            });
+            document.addEventListener('keyup', (e) => { 
+                keys[e.key.toLowerCase()] = false;
+                if (e.code === 'Space') keys[' '] = false;
+            });
+            renderer.domElement.addEventListener('pointerdown', handleWorldClick);
+            setupTouchControls();
+        }
+
+        function setupTouchControls() {
+            const joystick = document.getElementById('joystick');
+            const stick = document.getElementById('stick');
+            const resetStick = () => {
+                joystickPointerId = null;
+                touchMoveX = 0;
+                touchMoveZ = 0;
+                stick.style.transform = 'translate(0px, 0px)';
+            };
+
+            joystick.addEventListener('pointerdown', (e) => {
+                joystickPointerId = e.pointerId;
+                joystick.setPointerCapture(e.pointerId);
+                updateJoystick(e, joystick, stick);
+            });
+            joystick.addEventListener('pointermove', (e) => {
+                if (e.pointerId === joystickPointerId) updateJoystick(e, joystick, stick);
+            });
+            joystick.addEventListener('pointerup', resetStick);
+            joystick.addEventListener('pointercancel', resetStick);
+
+            bindTouchButton('touch-interact', () => actionPressed.interact = true);
+            bindTouchButton('touch-melee', () => actionPressed.attack = true);
+            bindTouchButton('touch-jump', () => keys[' '] = true, () => keys[' '] = false);
+        }
+
+        function updateJoystick(event, joystick, stick) {
+            const rect = joystick.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const maxDistance = rect.width * 0.34;
+            let dx = event.clientX - centerX;
+            let dy = event.clientY - centerY;
+            const distance = Math.hypot(dx, dy);
+            if (distance > maxDistance) {
+                dx = (dx / distance) * maxDistance;
+                dy = (dy / distance) * maxDistance;
+            }
+            stick.style.transform = `translate(${dx}px, ${dy}px)`;
+            touchMoveX = dx / maxDistance;
+            touchMoveZ = dy / maxDistance;
+        }
+
+        function bindTouchButton(id, onPress, onRelease = null) {
+            const button = document.getElementById(id);
+            button.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                button.setPointerCapture(e.pointerId);
+                onPress();
+            });
+            button.addEventListener('pointerup', (e) => {
+                e.preventDefault();
+                if (onRelease) onRelease();
+            });
+            button.addEventListener('pointercancel', () => {
+                if (onRelease) onRelease();
             });
         }
 
@@ -228,11 +530,22 @@
 
         function startGame() {
             document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('touch-controls').style.display = 'block';
             isGameStarted = true;
             health = 100;
+            hunger = 100;
             score = 0;
             day = 1;
             gameTime = 0;
+            inventory = { wood: 0, stone: 0, fruit: 0, weapon: null, tool: null };
+            lastSpawn = performance.now();
+            lastFrameTime = performance.now();
+            lastAttack = 0;
+            lastClickAttack = 0;
+            canJump = false;
+            clearSurvivalObjects();
+            createSurvivalObjects();
+            ensureAudio();
             updateHUD();
         }
 
@@ -244,57 +557,76 @@
             });
             zombies = [];
             
+            // Clear survival objects
+            clearSurvivalObjects();
+            
             // Reset player
             playerBody.position.set(0, 1, 0);
             playerBody.velocity.set(0, 0, 0);
+            playerBody.angularVelocity.set(0, 0, 0);
             player.position.set(0, 1, 0);
+            player.rotation.set(0, 0, 0);
             
-            // Reset game state
+            // Reset game state and start
             isGameOver = false;
-            isGameStarted = true;
             document.getElementById('game-over').style.display = 'none';
+            
+            // Reuse startGame for state initialization (clearSurvivalObjects already called)
             startGame();
         }
 
         function animate() {
             requestAnimationFrame(animate);
             
+            const now = performance.now();
+            const deltaMs = lastFrameTime ? Math.min(now - lastFrameTime, 100) : 16.67;
+            lastFrameTime = now;
+
             if (isGameStarted && !isGameOver) {
-                update();
+                update(deltaMs, now);
             }
             
             renderer.render(scene, camera);
         }
 
-        function update() {
-            world.step(1/60);
+        function update(deltaMs, now) {
+            world.step(1/60, deltaMs / 1000, 3);
             
             // Update player position from physics
             player.position.copy(playerBody.position);
             
             // Player movement
-            const moveX = (keys['d'] ? 1 : 0) - (keys['a'] ? 1 : 0);
-            const moveZ = (keys['s'] ? 1 : 0) - (keys['w'] ? 1 : 0);
+            const moveX = ((keys['d'] ? 1 : 0) - (keys['a'] ? 1 : 0)) + touchMoveX;
+            const moveZ = ((keys['s'] ? 1 : 0) - (keys['w'] ? 1 : 0)) + touchMoveZ;
             
-            const moveVector = new THREE.Vector3(moveX, 0, moveZ).normalize();
-            moveVector.applyQuaternion(camera.quaternion);
-            moveVector.y = 0;
+            const moveVector = new THREE.Vector3(moveX, 0, moveZ);
+            if (moveVector.lengthSq() > 0) {
+                moveVector.normalize();
+                player.rotation.y = Math.atan2(-moveVector.x, -moveVector.z);
+            }
             
             playerBody.velocity.x = moveVector.x * CONFIG.PLAYER_SPEED;
             playerBody.velocity.z = moveVector.z * CONFIG.PLAYER_SPEED;
             
+            if (actionPressed.interact) {
+                interactWithNearest();
+                actionPressed.interact = false;
+            }
+
+            if (actionPressed.attack) {
+                attackNearestZombie(now);
+                actionPressed.attack = false;
+            }
+
             // Jump
-            if (keys[' '] && Math.abs(playerBody.velocity.y) < 0.1) {
+            if (keys[' '] && canJump) {
                 playerBody.velocity.y = CONFIG.JUMP_FORCE;
+                canJump = false;
             }
             
-            // Camera follows player
-            camera.position.x = player.position.x;
-            camera.position.z = player.position.z;
-            camera.position.y = player.position.y + 0.5;
+            updateThirdPersonCamera(deltaMs);
             
             // Spawn zombies
-            const now = Date.now();
             if (now - lastSpawn > CONFIG.ZOMBIE_SPAWN_RATE) {
                 const angle = Math.random() * Math.PI * 2;
                 const distance = 80 + Math.random() * 40;
@@ -305,35 +637,41 @@
                 lastSpawn = now;
             }
             
-            // Update zombies
-            zombies.forEach((z, i) => {
+            // Update zombies and remove any bodies that fell out of the world.
+            zombies = zombies.filter((z) => {
                 const dx = player.position.x - z.mesh.position.x;
                 const dz = player.position.z - z.mesh.position.z;
                 const dist = Math.sqrt(dx*dx + dz*dz);
                 
                 if (dist > 0.5) {
-                    z.body.velocity.x = (dx / dist) * z.speed * 50;
-                    z.body.velocity.z = (dz / dist) * z.speed * 50;
+                    z.body.velocity.x = (dx / dist) * z.speed;
+                    z.body.velocity.z = (dz / dist) * z.speed;
                 } else {
                     // Attack player
-                    health -= 0.1;
+                    health -= 10 * (deltaMs / 1000);
                 }
                 
                 z.mesh.position.copy(z.body.position);
                 
-                // Remove dead zombies
+                // Remove zombies that fell out of the world (no score for falling)
                 if (z.mesh.position.y < -10) {
                     scene.remove(z.mesh);
                     world.removeBody(z.body);
-                    zombies.splice(i, 1);
-                    score += 10;
+                    return false; // Remove from array, no score
                 }
+                return true; // Keep in array
             });
+
+            hunger = Math.max(0, hunger - CONFIG.HUNGER_DRAIN_PER_SECOND * (deltaMs / 1000));
+            if (hunger <= 0) {
+                health -= CONFIG.STARVING_DAMAGE_PER_SECOND * (deltaMs / 1000);
+            }
             
             // Day cycle
-            gameTime += 16;
-            if (gameTime % 60000 === 0) {
-                day++;
+            gameTime += deltaMs;
+            const currentDay = Math.floor(gameTime / CONFIG.DAY_DURATION) + 1;
+            if (currentDay > day) {
+                day = currentDay;
                 score += day * 100;
             }
             
@@ -347,14 +685,307 @@
 
         function updateHUD() {
             document.getElementById('health').textContent = Math.max(0, Math.round(health));
+            document.getElementById('hunger').textContent = Math.max(0, Math.round(hunger));
             document.getElementById('score').textContent = score;
             document.getElementById('zombie-count').textContent = zombies.length;
             document.getElementById('day').textContent = day;
+            document.getElementById('wood').textContent = inventory.wood;
+            document.getElementById('stone').textContent = inventory.stone;
+            document.getElementById('fruit').textContent = inventory.fruit;
+            document.getElementById('weapon').textContent = inventory.weapon ? inventory.weapon.name : 'None';
+            document.getElementById('tool').textContent = inventory.tool ? inventory.tool.name : 'Hands';
+            document.getElementById('prompt').textContent = getNearestInteractionPrompt();
+        }
+
+        function getNearestInteractionPrompt() {
+            const nearest = findNearestInteractable();
+            if (!nearest) return '';
+            if (nearest.kind === 'pickup') {
+                return `E: pick up ${nearest.item.name}`;
+            }
+            const labels = { wood: 'gather wood', stone: 'mine stone', fruit: 'pick fruit' };
+            return `E: ${labels[nearest.item.type]}`;
+        }
+
+        function findNearestInteractable() {
+            let nearest = null;
+            const playerPos = player.position;
+            const consider = (kind, item) => {
+                const dist = distance2D(playerPos, item.mesh.position);
+                if (dist <= CONFIG.INTERACT_RANGE && (!nearest || dist < nearest.dist)) {
+                    nearest = { kind, item, dist };
+                }
+            };
+            resources.forEach(item => consider('resource', item));
+            pickups.forEach(item => consider('pickup', item));
+            return nearest;
+        }
+
+        function interactWithNearest() {
+            const nearest = findNearestInteractable();
+            if (!nearest) return;
+
+            if (nearest.kind === 'pickup') {
+                const item = nearest.item;
+                inventory[item.type] = {
+                    name: item.name,
+                    power: item.type === 'weapon' ? getWeaponPower(item.name) : getToolPower(item.name)
+                };
+                scene.remove(item.mesh);
+                pickups = pickups.filter(pickup => pickup !== item);
+                score += 15;
+                return;
+            }
+
+            gatherResource(nearest.item);
+        }
+
+        function gatherResource(resource) {
+            const toolMultiplier = getGatherMultiplier(resource.type);
+            const gained = resource.amount * toolMultiplier;
+
+            if (resource.type === 'fruit') {
+                // Fruit is eaten immediately, not stored
+                const eaten = gained;
+                hunger = Math.min(100, hunger + eaten * 28);
+            } else {
+                inventory[resource.type] += gained;
+            }
+
+            score += gained * 5;
+            scene.remove(resource.mesh);
+            resources = resources.filter(item => item !== resource);
+
+            const replacement = randomWorldPosition(20, 90);
+            createResourceNode(resource.type, replacement.x, replacement.z);
+        }
+
+        function getGatherMultiplier(type) {
+            if (!inventory.tool) return 1;
+            if (type === 'wood' && inventory.tool.name === 'Axe') return 2;
+            if (type === 'stone' && inventory.tool.name === 'Pickaxe') return 2;
+            return 1;
+        }
+
+        function getWeaponPower(name) {
+            if (name === 'Cleaver') return 34;
+            if (name === 'Pipe') return 24;
+            return 12;
+        }
+
+        function getToolPower(name) {
+            if (name === 'Axe' || name === 'Pickaxe') return 2;
+            return 1;
+        }
+
+        function attackNearestZombie(now) {
+            if (now - lastAttack < CONFIG.ATTACK_COOLDOWN) return;
+            lastAttack = now;
+
+            const baseDamage = inventory.weapon ? inventory.weapon.power : 12;
+            let target = null;
+            zombies.forEach(zombie => {
+                const dist = distance2D(player.position, zombie.mesh.position);
+                if (dist <= CONFIG.ATTACK_RANGE && (!target || dist < target.dist)) {
+                    target = { zombie, dist };
+                }
+            });
+
+            flashAttackArc();
+            if (!target) return;
+
+            damageZombie(target.zombie, baseDamage, target.zombie.mesh.position, false);
+        }
+
+        function damageZombie(zombie, damage, point, isClickAttack) {
+            zombie.health -= damage;
+            zombie.mesh.material.color.setHex(0xffffff);
+            playSound(isClickAttack ? 'hit' : 'melee');
+            createHitEffect(point, isClickAttack ? 0x66ffff : 0xffff66);
+            setTimeout(() => {
+                if (zombies.includes(zombie)) {
+                    zombie.mesh.material.color.setHex(0xff0066);
+                }
+            }, 80);
+
+            if (zombie.health <= 0) {
+                killZombie(zombie, point);
+            }
+        }
+
+        function killZombie(zombie, point) {
+            createDeathBurst(point || zombie.mesh.position);
+            playSound('kill');
+            scene.remove(zombie.mesh);
+            world.removeBody(zombie.body);
+            zombies = zombies.filter(item => item !== zombie);
+            score += 50;
+        }
+
+        function flashAttackArc() {
+            if (!attackArc) return;
+            attackArc.material.opacity = 0.85;
+            setTimeout(() => {
+                attackArc.material.opacity = 0;
+            }, 120);
+        }
+
+        function createHitEffect(position, color) {
+            const spark = new THREE.Mesh(
+                new THREE.SphereGeometry(0.45, 8, 6),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
+            );
+            spark.position.copy(position);
+            scene.add(spark);
+
+            const start = performance.now();
+            const animateSpark = () => {
+                const t = (performance.now() - start) / 180;
+                if (t >= 1) {
+                    scene.remove(spark);
+                    return;
+                }
+                spark.scale.setScalar(1 + t * 2.8);
+                spark.material.opacity = 0.9 * (1 - t);
+                requestAnimationFrame(animateSpark);
+            };
+            animateSpark();
+        }
+
+        function createClickRipple(position, color) {
+            const ripple = new THREE.Mesh(
+                new THREE.RingGeometry(0.2, 0.35, 24),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45, side: THREE.DoubleSide })
+            );
+            ripple.position.copy(position);
+            ripple.rotation.x = -Math.PI / 2;
+            scene.add(ripple);
+
+            const start = performance.now();
+            const animateRipple = () => {
+                const t = (performance.now() - start) / 220;
+                if (t >= 1) {
+                    scene.remove(ripple);
+                    return;
+                }
+                ripple.scale.setScalar(1 + t * 6);
+                ripple.material.opacity = 0.45 * (1 - t);
+                requestAnimationFrame(animateRipple);
+            };
+            animateRipple();
+        }
+
+        function createDeathBurst(position) {
+            for (let i = 0; i < 10; i++) {
+                const shard = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.18, 0.18, 0.18),
+                    new THREE.MeshBasicMaterial({ color: i % 2 ? 0xff0066 : 0x55ff88, transparent: true, opacity: 0.9 })
+                );
+                shard.position.copy(position);
+                scene.add(shard);
+
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.25,
+                    Math.random() * 0.18 + 0.08,
+                    (Math.random() - 0.5) * 0.25
+                );
+                const start = performance.now();
+                const animateShard = () => {
+                    const t = (performance.now() - start) / 520;
+                    if (t >= 1) {
+                        scene.remove(shard);
+                        return;
+                    }
+                    shard.position.add(velocity);
+                    velocity.y -= 0.008;
+                    shard.rotation.x += 0.18;
+                    shard.rotation.y += 0.12;
+                    shard.material.opacity = 0.9 * (1 - t);
+                    requestAnimationFrame(animateShard);
+                };
+                animateShard();
+            }
+        }
+
+        function ensureAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioContext) return;
+
+            const now = audioContext.currentTime;
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+
+            if (type === 'kill') {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(180, now);
+                oscillator.frequency.exponentialRampToValueAtTime(55, now + 0.18);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                oscillator.start(now);
+                oscillator.stop(now + 0.22);
+                return;
+            }
+
+            if (type === 'miss') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(260, now);
+                oscillator.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+                gain.gain.setValueAtTime(0.04, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                oscillator.start(now);
+                oscillator.stop(now + 0.09);
+                return;
+            }
+
+            oscillator.type = type === 'melee' ? 'square' : 'triangle';
+            oscillator.frequency.setValueAtTime(type === 'melee' ? 110 : 520, now);
+            oscillator.frequency.exponentialRampToValueAtTime(type === 'melee' ? 70 : 210, now + 0.1);
+            gain.gain.setValueAtTime(type === 'melee' ? 0.12 : 0.09, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            oscillator.start(now);
+            oscillator.stop(now + 0.12);
+        }
+
+        function distance2D(a, b) {
+            const dx = a.x - b.x;
+            const dz = a.z - b.z;
+            return Math.sqrt(dx * dx + dz * dz);
+        }
+
+        function updateThirdPersonCamera(deltaMs) {
+            cameraTarget.set(
+                player.position.x,
+                player.position.y + CONFIG.CAMERA_HEIGHT,
+                player.position.z + CONFIG.CAMERA_DISTANCE
+            );
+            cameraLookAt.set(
+                player.position.x,
+                player.position.y,
+                player.position.z - CONFIG.CAMERA_LOOK_AHEAD
+            );
+
+            if (deltaMs === 0) {
+                camera.position.copy(cameraTarget);
+            } else {
+                camera.position.lerp(cameraTarget, Math.min(1, deltaMs / 180));
+            }
+            camera.lookAt(cameraLookAt);
         }
 
         function endGame() {
             isGameOver = true;
             isGameStarted = false;
+            document.getElementById('touch-controls').style.display = 'none';
             document.getElementById('game-over').style.display = 'flex';
             document.getElementById('final-time').textContent = Math.round(gameTime / 1000);
             document.getElementById('final-score').textContent = score;

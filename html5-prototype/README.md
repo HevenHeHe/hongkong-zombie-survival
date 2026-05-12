@@ -10,15 +10,27 @@ Designed for CPI testing with low-poly aesthetic inspired by Hong Kong zombie ci
 - **Style**: Low Poly + Neon Cyberpunk UI
 
 ## Controls
-- **WASD**: Move player
-- **Mouse**: Look around (pointer lock)
+- **Mobile joystick**: Drag the left virtual stick to move
+- **Tap zombies**: Target and kill zombies with hit effects and sound
+- **PICK / HIT / JUMP buttons**: Gather or pick up, melee attack, and jump
+- **WASD**: Move player in the top-down view
+- **Mouse click**: Desktop fallback for targeting zombies
+- **E**: Gather nearby resources or pick up weapons/tools
+- **F**: Melee attack nearby zombies
 - **SPACE**: Jump
 - **Survival Goal**: Avoid zombies, survive as long as possible
 
 ## Game Features
 - 3D Hong Kong street environment with buildings
+- Portrait 9:16 mobile-first layout
+- Touch joystick and mobile action buttons
 - Zombie AI that chases the player
 - Health system
+- 10x zombie pressure with faster spawning and higher cap
+- Mouse-click zombie targeting with visual effects and procedural audio
+- Fullness system with starvation damage
+- Wood, stone, and fruit resource gathering
+- Pickable weapons and tools
 - Score based on survival time
 - Day/night progression
 
@@ -26,13 +38,13 @@ Designed for CPI testing with low-poly aesthetic inspired by Hong Kong zombie ci
 
 | Feature | Status |
 |---------|--------|
-| 3D Environment | ✅ Done |
-| Player Movement | ✅ Done |
-| Zombie AI | ✅ Done |
-| Physics | ✅ Done |
-| UI System | ✅ Done |
-| Tracking | ⏳ Pending |
-| Polish | ⏳ Pending |
+| 3D Environment | Done |
+| Player Movement | Done |
+| Zombie AI | Done |
+| Physics | Done |
+| UI System | Done |
+| Tracking | Pending |
+| Polish | Pending |
 
 ## Deployment
 Open `index.html` directly in browser (file:// protocol compatible).
